@@ -22,7 +22,7 @@ def initialize_embedding_model(input_spectrum, embedding_size=20, num_filters=4)
             model.add(layer=layers.UpSampling2D(size=(2, 1)))
             model.add(layer=layers.Conv2D(filters=num_filters, kernel_size=(2, 1), strides=(1, 1), activation='relu',
                                           padding='same'))
-            #model.add(layer=layers.Conv2D(filters=num_filters, kernel_size=(3, 1), strides=(1, 1), activation='relu'))
+            # model.add(layer=layers.Conv2D(filters=num_filters, kernel_size=(3, 1), strides=(1, 1), activation='relu'))
         print(model.layers[-1].output_shape[1])
 
     model.build((1, input_spectrum.shape[0], input_spectrum.shape[1], 1))
