@@ -44,9 +44,15 @@ def get_morgan_fingerprints(mol_name):
     return AllChem.GetMorganFingerprintAsBitVect(mol_name, 2).ToBitString()
 
 
+def simplify_spectra(nmr_df):
+    nmr_df['Spectrum 1H'] = [x.split([';', '|']) for x in nmr_df['Spectrum 1H']]
+    return nmr_df
+
+
 def import_database_as_df():
     nmr_df = initialize_dataframe(import_nmrshiftdb2_database())
-    nmr_df_mod = create_proton_carbon_spectra(nmr_df)
-    nmr_df_mod = trim_dataframe_no_two_spectra(nmr_df_mod)
-    nmr_df_mod = drop_unnecessary_columns(nmr_df_mod)
-    return nmr_df_mod
+    nmr_df = create_proton_carbon_spectra(nmr_df)
+    nmr_df = trim_dataframe_no_two_spectra(nmr_df)
+    nmr_df = drop_unnecessary_columns(nmr_df)
+    nmr_df = simplify_spectra(nmr_df)
+    return nmr_df
