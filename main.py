@@ -1,7 +1,9 @@
+import pandas as pd
 import tensorflow as tf
 from model import initialize_model
 import numpy as np
 from database import import_database_as_df
+pd.set_option('display.max_columns', None)
 
 nmr_df = import_database_as_df()
 print(nmr_df)
