@@ -1,10 +1,8 @@
 from rdkit import Chem
 from rdkit.Chem import AllChem
-from rdkit.Chem import Draw
-from rdkit.Chem.Draw import rdMolDraw2D
-from rdkit.Chem import Descriptors
 import pandas as pd
 import numpy as np
+from rdkit import RDLogger
 import re
 
 
@@ -82,12 +80,59 @@ def simplify_spectra(nmr_df):
     """
     nmr_df['Spectrum 1H'] = [re.findall(r'^\d+\.?\d*|\|\d+\.?\d*', x) for x in nmr_df['Spectrum 1H']]
     nmr_df['Spectrum 1H'] = [list(map(lambda y: re.sub(r'\|', '', y), x)) for x in nmr_df['Spectrum 1H']]
-    nmr_df['Spectrum 13C'] = [re.findall(r'^\d+\.?\d*|\|\d+\.?\d*', x) for x in nmr_df['Spectrum 13C']]
+    nmr_df['Spectrum 13C'] = [re.findall(r'^\d+\.?\d*|\|\d+\.?\d*|[a-zA-Z]+', x) for x in nmr_df['Spectrum 13C']]
     nmr_df['Spectrum 13C'] = [list(map(lambda y: re.sub(r'\|', '', y), x)) for x in nmr_df['Spectrum 13C']]
+    nmr_df['Spectrum 1H'] = nmr_df['Spectrum 1H'].apply(aux_frequency_list)
+    nmr_df['Spectrum 13C'] = nmr_df['Spectrum 13C'].apply(aux_shift_multiplicity_association)
+    nmr_df['Spectrum 13C'] = nmr_df['Spectrum 13C'].apply(aux_frequency_list)
+    nmr_df['Spectrum 13C'] = nmr_df['Spectrum 13C'].apply(aux_num_multiplicity)
+    nmr_df['Spectrum 1H'] = nmr_df['Spectrum 1H'].apply(pad_spectrum)
+    nmr_df['Spectrum 13C'] = nmr_df['Spectrum 13C'].apply(pad_spectrum)
+    nmr_df['Input'] = nmr_df.apply(lambda x: list(x['Spectrum 1H'])+list(x['Spectrum 13C']), axis=1)
     return nmr_df
 
 
+def aux_num_multiplicity(spec_list):
+    replace_dict = {'S': 1, 'D': 2, 'T': 3, 'Q': 4}
+    return [replace_dict[x] if str(x).isalpha() else x for x in spec_list]
+
+
+def aux_frequency_list(spec_list):
+    freq = {}
+    freq_list = []
+    for item in spec_list:
+        if item in freq:
+            freq[item] += 1
+        else:
+            freq[item] = 1
+    for key, val in freq.items():
+        if isinstance(key,str):
+            freq_list.append(float(key))
+        else:
+            freq_list.append(float(key[0]))
+            freq_list.append(key[1])
+        freq_list.append(val)
+    return freq_list
+
+
+def aux_shift_multiplicity_association(spec_list):
+    associated_list = []
+    for item in zip(spec_list[::2], spec_list[1::2]):
+        associated_list.append(item)
+    return associated_list
+
+
+def pad_spectrum(spec_list, size=150):
+    lst = np.array(spec_list, dtype=float)
+    lst = np.concatenate([lst, np.zeros(size-len(spec_list))], dtype=float)
+    return lst
+
+
+def concat_spectra(spec_list1, spec_list2):
+    return spec_list1 + spec_list2
+
 def import_database_as_df():
+    RDLogger.DisableLog('rdApp.*')
     nmr_df = initialize_dataframe(import_nmrshiftdb2_database())
     nmr_df = create_proton_carbon_spectra(nmr_df)
     nmr_df = trim_dataframe_no_two_spectra(nmr_df)
