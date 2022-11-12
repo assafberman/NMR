@@ -15,6 +15,7 @@ def initialize_dataframe(molecule_list):
     nmr_df = pd.DataFrame([x.GetPropsAsDict() for x in molecule_list if x is not None])
     nmr_df['Name'] = [x.GetProp('_Name') for x in molecule_list if x is not None]
     nmr_df['Smiles'] = [Chem.MolToSmiles(x) for x in molecule_list if x is not None]
+    nmr_df['Morgan'] = [AllChem.GetMorganFingerprintAsBitVect(x, 2, nBits=512) for x in molecule_list if x is not None]
     return nmr_df
 
 
@@ -32,16 +33,22 @@ def create_proton_carbon_spectra(nmr_df):
     :param nmr_df: Dataframe of all molecular properties
     :return: nmr_df:  Dataframe of all molecular properties and two clean 1H and 13C spectra
     """
-    nmr_df['Spectrum 13C'] = nmr_df.filter(regex='Spectrum 13C.*').values.tolist()
-    nmr_df['Spectrum 1H'] = nmr_df.filter(regex='Spectrum 1H.*').values.tolist()
-    clean_13C_list = []
-    clean_1H_list = []
-    for mol_13C in nmr_df['Spectrum 13C'].values:
-        clean_13C_list.append(next(filter(None, mol_13C), np.nan))
-    for mol_1H in nmr_df['Spectrum 1H'].values:
-        clean_1H_list.append(next(filter(None, mol_1H), np.nan))
-    nmr_df['Spectrum 13C'] = clean_13C_list
-    nmr_df['Spectrum 1H'] = clean_1H_list
+    nmr_df['Spectrum 13C'] = nmr_df.filter(like='Spectrum 13C').values.tolist()
+    nmr_df['Spectrum 1H'] = nmr_df.filter(like='Spectrum 1H').values.tolist()
+    print('13C:',nmr_df['Spectrum 13C'].count())
+    print('1H:',nmr_df['Spectrum 1H'].count())
+    #clean_13C_list = []
+    #clean_1H_list = []
+    #for mol_13C in nmr_df['Spectrum 13C'].values:
+    #    clean_13C_list.append(next(filter(None, mol_13C), np.nan))
+    #for mol_1H in nmr_df['Spectrum 1H'].values:
+    #    clean_1H_list.append(next(filter(None, mol_1H), np.nan))
+    #nmr_df['Spectrum 13C'] = clean_13C_list
+    #nmr_df['Spectrum 1H'] = clean_1H_list
+    nmr_df['Spectrum 13C'] = nmr_df['Spectrum 13C'].apply(lambda x: next(filter(None, x), np.nan))
+    nmr_df['Spectrum 1H'] = nmr_df['Spectrum 1H'].apply(lambda x: next(filter(None, x), np.nan))
+    print('13C:', nmr_df['Spectrum 13C'].count())
+    print('1H:', nmr_df['Spectrum 1H'].count())
     return nmr_df
 
 
@@ -60,7 +67,7 @@ def drop_unnecessary_columns(nmr_df):
     :param nmr_df:
     :return:
     """
-    return nmr_df.iloc[:, -4:]
+    return nmr_df.iloc[:, -5:]
 
 
 def get_morgan_fingerprints(mol_name):
@@ -106,7 +113,7 @@ def aux_frequency_list(spec_list):
         else:
             freq[item] = 1
     for key, val in freq.items():
-        if isinstance(key,str):
+        if isinstance(key, str):
             freq_list.append(float(key))
         else:
             freq_list.append(float(key[0]))
@@ -122,7 +129,7 @@ def aux_shift_multiplicity_association(spec_list):
     return associated_list
 
 
-def pad_spectrum(spec_list, size=150):
+def pad_spectrum(spec_list, size=90):
     lst = np.array(spec_list, dtype=float)
     lst = np.concatenate([lst, np.zeros(size-len(spec_list))], dtype=float)
     return lst
@@ -131,11 +138,12 @@ def pad_spectrum(spec_list, size=150):
 def concat_spectra(spec_list1, spec_list2):
     return spec_list1 + spec_list2
 
+
 def import_database_as_df():
     RDLogger.DisableLog('rdApp.*')
     nmr_df = initialize_dataframe(import_nmrshiftdb2_database())
     nmr_df = create_proton_carbon_spectra(nmr_df)
     nmr_df = trim_dataframe_no_two_spectra(nmr_df)
     nmr_df = drop_unnecessary_columns(nmr_df)
-    nmr_df = simplify_spectra(nmr_df)
+    #nmr_df = simplify_spectra(nmr_df)
     return nmr_df
