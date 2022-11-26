@@ -3,6 +3,7 @@ from rdkit.Chem import AllChem
 import pandas as pd
 import numpy as np
 from rdkit import RDLogger
+import tensorflow as tf
 import re
 
 
@@ -15,7 +16,7 @@ def initialize_dataframe(molecule_list):
     nmr_df = pd.DataFrame([x.GetPropsAsDict() for x in molecule_list if x is not None])
     nmr_df['Name'] = [x.GetProp('_Name') for x in molecule_list if x is not None]
     nmr_df['Smiles'] = [Chem.MolToSmiles(x) for x in molecule_list if x is not None]
-    nmr_df['Morgan'] = [AllChem.GetMorganFingerprintAsBitVect(x, 2, nBits=512) for x in molecule_list if x is not None]
+    nmr_df['Morgan'] = [morgan_to_list(x) for x in molecule_list if x is not None]
     return nmr_df
 
 
@@ -29,22 +30,6 @@ def import_nmrshiftdb2_database():
 
 def create_proton_carbon_spectra(nmr_df):
     nmr_df['Spectrum 13C'] = nmr_df['Spectrum 13C 0']
-    return nmr_df
-
-
-def create_proton_carbon_spectra_2(nmr_df):
-    """
-    Isolates the first 1H and 13C spectrum available from all spectra
-    :param nmr_df: Dataframe of all molecular properties
-    :return: nmr_df:  Dataframe of all molecular properties and two clean 1H and 13C spectra
-    """
-    nmr_df['Spectrum 13C'] = nmr_df.filter(like='Spectrum 13C').values.tolist()
-    print('13C:', nmr_df['Spectrum 13C'].count())
-    print('1H:', nmr_df['Spectrum 1H'].count())
-    nmr_df['Spectrum 13C'] = nmr_df['Spectrum 13C'].apply(lambda x: next(filter(None, x), np.nan))
-    nmr_df['Spectrum 1H'] = nmr_df['Spectrum 1H'].apply(lambda x: next(filter(None, x), np.nan))
-    print('13C:', nmr_df['Spectrum 13C'].count())
-    print('1H:', nmr_df['Spectrum 1H'].count())
     return nmr_df
 
 
@@ -66,15 +51,6 @@ def drop_unnecessary_columns(nmr_df):
     return nmr_df.iloc[:, -4:]
 
 
-def get_morgan_fingerprints(mol_name):
-    """
-    Get Bit Array of Morgan molecular fingerprint
-    :param mol_name:
-    :return:
-    """
-    return AllChem.GetMorganFingerprintAsBitVect(mol_name, 2).ToBitString()
-
-
 def simplify_spectra(nmr_df):
     """
     Convert the string format of the spectra into manageable list
@@ -88,7 +64,8 @@ def simplify_spectra(nmr_df):
     nmr_df['Spectrum 13C'] = nmr_df['Spectrum 13C'].apply(aux_frequency_list)
     nmr_df['Spectrum 13C'] = nmr_df['Spectrum 13C'].apply(aux_num_multiplicity)
     nmr_df['Spectrum 13C'] = nmr_df['Spectrum 13C'].apply(pad_spectrum)
-    nmr_df['Input'] = nmr_df.apply(lambda x: list(x['Spectrum 13C']), axis=1)
+    #nmr_df['Input'] = nmr_df.apply(lambda x: np.asarray(x['Spectrum 13C']), axis=1)
+    nmr_df['Input'] = nmr_df['Spectrum 13C']
     return nmr_df
 
 
@@ -142,20 +119,22 @@ def aux_is_number(s):
 def pad_spectrum(spec_list, size=256):
     lst = np.array(spec_list, dtype=float)
     lst = np.concatenate([lst, np.zeros(size - len(spec_list))], dtype=float)
-    return lst
+    return lst.tolist()
 
 
-def concat_spectra(spec_list1, spec_list2):
-    return spec_list1 + spec_list2
+def morgan_to_list(molecule):
+    fp_list = []
+    fp = AllChem.GetMorganFingerprintAsBitVect(molecule, 2, nBits=512).ToBitString()
+    for i in fp:
+        fp_list.append(int(i))
+    return fp_list
 
 
 def import_database_as_df():
     RDLogger.DisableLog('rdApp.*')
     nmr_df = initialize_dataframe(import_nmrshiftdb2_database())
     nmr_df = create_proton_carbon_spectra(nmr_df)
-    print('Before trim:', nmr_df.shape)
     nmr_df = trim_dataframe_no_two_spectra(nmr_df)
-    print('After trim:', nmr_df.shape)
     nmr_df = drop_unnecessary_columns(nmr_df)
     nmr_df = simplify_spectra(nmr_df)
     return nmr_df
